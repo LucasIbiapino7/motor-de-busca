@@ -6,6 +6,8 @@ import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import java.util.ArrayList;
 import java.util.*;
+import java.util.AbstractMap.SimpleEntry;
+import java.util.function.Predicate;
 
 public class Main {
     public static void main(String[] args) {
@@ -28,8 +30,7 @@ public class Main {
             // Obter a lista de elementos com a tag "page"
             NodeList nList = document.getElementsByTagName("page");
 
-            ArrayList<Element> elementsList = new ArrayList<>();
-            TreeMap<Integer, Element> treeMap = new TreeMap<>(Collections.reverseOrder());
+            List<SimpleEntry<Element, Integer>> list = new ArrayList<>();
 
             for (int i = 0; i < nList.getLength(); i++) {
 
@@ -42,21 +43,30 @@ public class Main {
                     Element elemento = (Element) node;
 
                     // extrai e imprimir o conteúdo dos elementos
-                    String id = getElementValueByTagName(elemento, "id");
+//                    String id = getElementValueByTagName(elemento, "id");
                     String title = getElementValueByTagName(elemento, "title");
                     String text = getElementValueByTagName(elemento, "text");
 
                     //"quebra" o title
-                    String[] words = title.split(" ");
+                    String[] wordsTitle = title.split(" ");
 
-                    if (findWord(words, search)){
-                        System.out.println("ID: " + id);
-                        System.out.println("Title: " + title);
-                        System.out.println("Text: " + text);
-                        System.out.println("------");
+                    //verifica se a busca está no title
+                    if (findWord(wordsTitle, search)){
+                        String[] textWords = text.split(" ");
+
+                        //conta o número de ocorrencias no text
+                        int occurrences = countOccurrencesBySearch(textWords, search);
+
+                        list.add(new SimpleEntry<>(elemento, occurrences));
                     }
                 }
             }
+
+            //ordena pelo número de ocorrencias
+            list.sort((entry1, entry2) -> - entry1.getValue().compareTo(entry2.getValue()));
+            printElements(list, 10);
+
+
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -79,6 +89,34 @@ public class Main {
             }
         }
         return false;
+    }
+
+    private static int countOccurrencesBySearch(String[] words, String search){
+        int count = 0;
+        for (String word : words) {
+            if (word.equalsIgnoreCase(search)){
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private static void printElements(List<SimpleEntry<Element, Integer>> list, int limit){
+        int count = 0;
+        for (SimpleEntry<Element, Integer> element : list) {
+            String id = getElementValueByTagName(element.getKey(), "id");
+            String title = getElementValueByTagName(element.getKey(), "title");
+//            String text = getElementValueByTagName(element.getKey(), "text");
+            System.out.println(id);
+            System.out.println(title);
+//            System.out.println(text);
+            System.out.println("occurrences: " + element.getValue());
+            System.out.println("---------------------");
+            count++;
+            if (count >= limit){
+                break;
+            }
+        }
     }
 
 }
