@@ -10,66 +10,137 @@ import java.util.AbstractMap.SimpleEntry;
 import java.util.function.Predicate;
 
 public class Main {
+    private static final int stopWords = 3;
     public static void main(String[] args) {
-        int count = 0;
 
-        String search = "computer";
+        Scanner scanner = new Scanner(System.in);
 
-        try {
-            // Criar uma instância de DocumentBuilderFactory
-            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-            DocumentBuilder builder = factory.newDocumentBuilder();
+        Map<String, List<SimpleEntry<Element, Double>>> cache = new HashMap<>();
 
-            // Carregar o arquivo XML
-            //o document já pode ser acessado
-            Document document = builder.parse("verbetesWikipedia.xml");
+        while (true){
 
-            // Normalizar o documento
-            document.getDocumentElement().normalize();
+            System.out.println("Digite a busca: ");
+            String search = scanner.next();
 
-            // Obter a lista de elementos com a tag "page"
-            NodeList nList = document.getElementsByTagName("page");
+            if (cache.containsKey(search)){
+                System.out.println("caiu aqui");
+                printElements(cache.get(search), 5);
 
-            List<SimpleEntry<Element, Integer>> list = new ArrayList<>();
-
-            for (int i = 0; i < nList.getLength(); i++) {
-
-                // Obter o nó de cada item
-                Node node = nList.item(i);
-
-                //verifica se o nó é um elemento
-                if (node.getNodeType() == Node.ELEMENT_NODE) {
-                    //pega o elemento
-                    Element elemento = (Element) node;
-
-                    // extrai e imprimir o conteúdo dos elementos
-//                    String id = getElementValueByTagName(elemento, "id");
-                    String title = getElementValueByTagName(elemento, "title");
-                    String text = getElementValueByTagName(elemento, "text");
-
-                    //"quebra" o title
-                    String[] wordsTitle = title.split(" ");
-
-                    //verifica se a busca está no title
-                    if (findWord(wordsTitle, search)){
-                        String[] textWords = text.split(" ");
-
-                        //conta o número de ocorrencias no text
-                        int occurrences = countOccurrencesBySearch(textWords, search);
-
-                        list.add(new SimpleEntry<>(elemento, occurrences));
-                    }
+                System.out.println("para sair digite 0 e 1 para continuar: ");
+                int flag = scanner.nextInt();
+                if (flag == 0){
+                    break;
                 }
+
+                continue;
             }
 
-            //ordena pelo número de ocorrencias
-            list.sort((entry1, entry2) -> - entry1.getValue().compareTo(entry2.getValue()));
-            printElements(list, 10);
+            try {
+                // Cria uma instância de DocumentBuilderFactory
+                DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+                DocumentBuilder builder = factory.newDocumentBuilder();
 
+                // Carrega o arquivo XML
+                //o document já pode ser acessado
+                Document document = builder.parse("verbetesWikipedia.xml");
 
-        } catch (Exception e) {
-            e.printStackTrace();
+                // Normalizar o documento
+                document.getDocumentElement().normalize();
+
+                // Obter a lista de elementos com a tag "page"
+                NodeList nList = document.getElementsByTagName("page");
+
+                // Lista de "tuplas"
+                List<SimpleEntry<Element, Double>> list = new ArrayList<>();
+
+                for (int i = 0; i < nList.getLength(); i++) {
+
+                    // Obter o nó de cada item
+                    Node node = nList.item(i);
+
+                    //verifica se o nó é um elemento
+                    if (node.getNodeType() == Node.ELEMENT_NODE) {
+                        //pega o elemento
+                        Element elemento = (Element) node;
+
+                        // extrai o conteúdo dos elementos
+//                    String id = getElementValueByTagName(elemento, "id");
+                        String title = getElementValueByTagName(elemento, "title");
+                        String text = getElementValueByTagName(elemento, "text");
+
+                        //"quebra" o text
+                        String[] textWords = text.split(" ");
+
+                        //verifica se a busca está no text
+                        if (findWord(textWords, search)){
+                            //conta o número de ocorrencias no text
+                            double percentage = countPercentage(textWords, search);
+
+                            //"quebra" o title
+                            String[] titleWords = title.split(" ");
+
+                            //Pensar em uma eurística melhor!
+                            if (findWord(titleWords, search)){
+                                percentage += 0.10;
+                            }
+
+                            list.add(new SimpleEntry<>(elemento, percentage));
+                        }
+                    }
+                }
+
+                //Ordena e limita em 5 o resultado
+                List<SimpleEntry<Element, Double>> result = list.stream()
+                        .sorted((entry1, entry2) -> -entry1.getValue().compareTo(entry2.getValue()))
+                        .limit(5)
+                        .toList();
+
+                /*
+                Salva a busca no cache - chave: palavra da busca (String). Result: Lista de "tuplas (elemento e
+                cálculo da porcentagem.
+                 */
+                cache.put(search, result);
+
+                printElements(result, 5);
+
+                System.out.println("para sair digite 0 e 1 para continuar: ");
+                int flag = scanner.nextInt();
+                if (flag == 0){
+                    break;
+                }
+
+                //ordena pelo número de ocorrencias
+//                list.sort((entry1, entry2) -> - entry1.getValue().compareTo(entry2.getValue()));
+//                printElements(list, 5);
+
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         }
+
+    }
+
+    //conta a porcentagem de aparição da busca em relação ao texto
+    // calculo: ocorrencias / palavras do texto que não são stop words
+    private static double countPercentage(String[] textWords, String search) {
+        //Número de ocorrencias da palavra no texto
+        int occurrences = countOccurrencesBySearch(textWords, search);
+
+        //número de palavras no texto sem as stopWords
+        int occurrencesLessStopWords = countLessStopWords(textWords);
+
+        return (double) occurrences / occurrencesLessStopWords;
+    }
+
+    //Conta o número de palavras do texto sem levar em consideração as stopwords
+    private static int countLessStopWords(String[] textWords) {
+        int count = 0;
+        for (String textWord : textWords) {
+            if (textWord.length() > stopWords){
+                count++;
+            }
+        }
+        return count;
     }
 
     // Método para extrair o valor de um elemento com base no nome da tag
@@ -101,16 +172,17 @@ public class Main {
         return count;
     }
 
-    private static void printElements(List<SimpleEntry<Element, Integer>> list, int limit){
+    private static void printElements(List<SimpleEntry<Element, Double>> list, int limit){
         int count = 0;
-        for (SimpleEntry<Element, Integer> element : list) {
+        for (SimpleEntry<Element, Double> element : list) {
             String id = getElementValueByTagName(element.getKey(), "id");
             String title = getElementValueByTagName(element.getKey(), "title");
 //            String text = getElementValueByTagName(element.getKey(), "text");
             System.out.println(id);
             System.out.println(title);
 //            System.out.println(text);
-            System.out.println("occurrences: " + element.getValue());
+            System.out.print("percentage: ");
+            System.out.printf("%.8f\n", element.getValue());
             System.out.println("---------------------");
             count++;
             if (count >= limit){
