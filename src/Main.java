@@ -7,117 +7,143 @@ import org.w3c.dom.NodeList;
 import java.util.ArrayList;
 import java.util.*;
 import java.util.AbstractMap.SimpleEntry;
-import java.util.function.Predicate;
 
 public class Main {
     private static final int stopWords = 3;
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
 
         Scanner scanner = new Scanner(System.in);
 
-        Map<String, List<SimpleEntry<Element, Double>>> cache = new HashMap<>();
+        //Cache
+        Map<String, Map<String, Double>> cache = preProcessing();
+
+        /*
+        como funciona a busca?
+        quando recebemos um verbete, percorremos o cache, em cada id perguntamos se aquele verbete
+        tem a palavra que buscamos, se sim, retornamos a sua porcentagem, depois ordenamos por porcentagem e exibimos
+        os valores
+         */
+
+        //id e porcentagem
+        List<SimpleEntry<String, Double>> result;
 
         while (true){
+            System.out.println("digite o termo de busca:");
+            String search = scanner.next().toLowerCase();
 
-            System.out.println("Digite a busca: ");
-            String search = scanner.next();
+            result = searchInCache(search, cache);
 
-            if (cache.containsKey(search)){
-                System.out.println("caiu aqui");
-                printElements(cache.get(search), 5);
+            result.stream()
+                    .sorted((entry1, entry2) -> - entry1.getValue().compareTo(entry2.getValue()))
+                    .limit(5)
+                    .forEach(System.out::println);
 
-                System.out.println("para sair digite 0 e 1 para continuar: ");
-                int flag = scanner.nextInt();
-                if (flag == 0){
-                    break;
-                }
-
-                continue;
+            System.out.println("digite 0 se quiser parar");
+            int flag = scanner.nextInt();
+            if (flag == 0){
+                break;
             }
+        }
 
-            try {
-                // Cria uma instância de DocumentBuilderFactory
-                DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-                DocumentBuilder builder = factory.newDocumentBuilder();
+    }
 
-                // Carrega o arquivo XML
-                //o document já pode ser acessado
-                Document document = builder.parse("verbetesWikipedia.xml");
+    private static List<SimpleEntry<String, Double>> searchInCache(String search, Map<String, Map<String, Double>> cache) {
+        List<SimpleEntry<String, Double>> result = new ArrayList<>();
 
-                // Normalizar o documento
-                document.getDocumentElement().normalize();
+        for (Map.Entry<String, Map<String, Double>> outerEntry : cache.entrySet()){
+            //id do verbete
+            String id = outerEntry.getKey();
+            //map com -> palavra como chave e porcentagem como value
+            Map<String, Double> map = outerEntry.getValue();
 
-                // Obter a lista de elementos com a tag "page"
-                NodeList nList = document.getElementsByTagName("page");
+            if (map.containsKey(search)){
+                SimpleEntry<String, Double> find = new SimpleEntry<>(id, map.get(search));
+                result.add(find);
+            }
+        }
 
-                // Lista de "tuplas"
-                List<SimpleEntry<Element, Double>> list = new ArrayList<>();
+        return result;
+    }
 
-                for (int i = 0; i < nList.getLength(); i++) {
+    private static Map<String, Map<String, Double>> preProcessing() throws Exception{
 
-                    // Obter o nó de cada item
-                    Node node = nList.item(i);
+        Map<String, Map<String, Double>> cache = new HashMap<>();
 
-                    //verifica se o nó é um elemento
-                    if (node.getNodeType() == Node.ELEMENT_NODE) {
-                        //pega o elemento
-                        Element elemento = (Element) node;
+        // Cria uma instância de DocumentBuilderFactory
+        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+        DocumentBuilder builder = factory.newDocumentBuilder();
 
-                        // extrai o conteúdo dos elementos
-//                    String id = getElementValueByTagName(elemento, "id");
-                        String title = getElementValueByTagName(elemento, "title");
-                        String text = getElementValueByTagName(elemento, "text");
+        // Carrega o arquivo XML
+        //o document já pode ser acessado
+        Document document = builder.parse("verbetesWikipedia.xml");
 
-                        //"quebra" o text
-                        String[] textWords = text.split(" ");
+        // Normalizar o documento
+        document.getDocumentElement().normalize();
 
-                        //verifica se a busca está no text
-                        if (findWord(textWords, search)){
-                            //conta o número de ocorrencias no text
-                            double percentage = countPercentage(textWords, search);
+        // Obter a lista de elementos com a tag "page"
+        NodeList nList = document.getElementsByTagName("page");
 
-                            //"quebra" o title
-                            String[] titleWords = title.split(" ");
+        for (int i = 0; i < nList.getLength(); i++) {
+            // Obter o nó de cada item
+            Node node = nList.item(i);
 
-                            //Pensar em uma eurística melhor!
-                            if (findWord(titleWords, search)){
-                                percentage += 0.10;
-                            }
+            //verifica se o nó é um elemento
+            if (node.getNodeType() == Node.ELEMENT_NODE) {
+                //pega o elemento
+                Element elemento = (Element) node;
 
-                            list.add(new SimpleEntry<>(elemento, percentage));
+                //Hash que guarda as ocorrencias e a porcentagem
+                //chave - Palavra, valor - porcentagem
+                Map<String, Double> occurrences = new HashMap<>();
+
+                // extrai o conteúdo dos elementos
+                String id = getElementValueByTagName(elemento, "id");
+                String title = getElementValueByTagName(elemento, "title");
+                String text = getElementValueByTagName(elemento, "text");
+
+                //"quebra" o text e o title
+                String[] textWords = text.split(" ");
+                String[] titleWords = title.split(" ");
+
+                int textSize = 0;
+
+                //percorre o texto
+                for (String word : textWords) {
+                    //conta o numero de palavras do texto
+                    if (word.length() > stopWords){
+                        textSize++;
+
+                        //insere uma nova palavra no hash
+                        if (!occurrences.containsKey(word.toLowerCase())){
+                            occurrences.put(word.toLowerCase(), 1.0);
+                        }else {//incrementa o valor de uma palavra
+                            Double value = occurrences.get(word.toLowerCase());
+                            value++;
+                            occurrences.put(word.toLowerCase(), value);
                         }
                     }
                 }
 
-                //Ordena e limita em 5 o resultado
-                List<SimpleEntry<Element, Double>> result = list.stream()
-                        .sorted((entry1, entry2) -> -entry1.getValue().compareTo(entry2.getValue()))
-                        .limit(5)
-                        .toList();
-
-                /*
-                Salva a busca no cache - chave: palavra da busca (String). Result: Lista de "tuplas (elemento e
-                cálculo da porcentagem.
-                 */
-                cache.put(search, result);
-
-                printElements(result, 5);
-
-                System.out.println("para sair digite 0 e 1 para continuar: ");
-                int flag = scanner.nextInt();
-                if (flag == 0){
-                    break;
+                //atualiza o valor do occurrences para porcentagem
+                for (Map.Entry<String, Double> entry : occurrences.entrySet()) {
+                    String key = entry.getKey();
+                    Double value = (double) entry.getValue() / textSize;
+                    occurrences.put(key, value);
                 }
 
-                //ordena pelo número de ocorrencias
-//                list.sort((entry1, entry2) -> - entry1.getValue().compareTo(entry2.getValue()));
-//                printElements(list, 5);
-
-            } catch (Exception e) {
-                e.printStackTrace();
+                for (String word : titleWords) {
+                    if (occurrences.containsKey(word.toLowerCase())){
+                        Double value = occurrences.get(word.toLowerCase());
+                        value += 0.10;
+                        occurrences.put(word.toLowerCase(), value);
+                    }
+                }
+                //adiciona o map de occurrences no cache principal
+                cache.put(id, occurrences);
             }
         }
 
+        return cache;
     }
 
     //conta a porcentagem de aparição da busca em relação ao texto
@@ -172,6 +198,7 @@ public class Main {
         return count;
     }
 
+
     private static void printElements(List<SimpleEntry<Element, Double>> list, int limit){
         int count = 0;
         for (SimpleEntry<Element, Double> element : list) {
@@ -190,7 +217,6 @@ public class Main {
             }
         }
     }
-
 }
 
 
