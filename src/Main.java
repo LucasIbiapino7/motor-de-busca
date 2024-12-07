@@ -14,8 +14,11 @@ public class Main {
 
         Scanner scanner = new Scanner(System.in);
 
+        //guarda as informações do verbete (chave - id)
+        Map<String, String> cacheInfo = new HashMap<>();
+
         //Cache
-        Map<String, Map<String, Double>> cache = preProcessing();
+        Map<String, Map<String, Double>> cache = preProcessing(cacheInfo);
 
         /*
         como funciona a busca?
@@ -29,22 +32,29 @@ public class Main {
 
         while (true){
             System.out.println("digite o termo de busca:");
-            String search = scanner.next().toLowerCase();
+            String search = scanner.nextLine().toLowerCase();
 
-            result = searchInCache(search, cache);
+            String[] split = search.split(" ");
+
+            if (split.length > 1){
+                result = searchTwoWordsInCache(split, cache);
+            }else {
+                result = searchInCache(search, cache);
+            }
 
             result.stream()
                     .sorted((entry1, entry2) -> - entry1.getValue().compareTo(entry2.getValue()))
                     .limit(5)
+                    .map(entry -> cacheInfo.get(entry.getKey()))
                     .forEach(System.out::println);
 
             System.out.println("digite 0 se quiser parar");
             int flag = scanner.nextInt();
+            scanner.nextLine();
             if (flag == 0){
                 break;
             }
         }
-
     }
 
     private static List<SimpleEntry<String, Double>> searchInCache(String search, Map<String, Map<String, Double>> cache) {
@@ -61,11 +71,46 @@ public class Main {
                 result.add(find);
             }
         }
+        return result;
+    }
+
+    private static List<SimpleEntry<String, Double>> searchTwoWordsInCache(String[] search, Map<String, Map<String, Double>> cache) {
+        List<SimpleEntry<String, Double>> result = new ArrayList<>();//Lista pra armazenar o resultado
+
+        //hash que armazena o resultado temporariamente
+        Map<String, Double> resultAux = new HashMap<>();
+
+        //percorrendo cada palavra da Busca
+        for (String s : search) {
+            for (Map.Entry<String, Map<String, Double>> outerEntry : cache.entrySet()) {
+                //id do verbete
+                String id = outerEntry.getKey();
+                //map com -> palavra como chave e porcentagem como value
+                Map<String, Double> map = outerEntry.getValue();
+
+                if (map.containsKey(s)) {//map do cache
+                    if (resultAux.containsKey(id)){//map com o resultado (id, porcentagem)
+                        Double value = resultAux.get(id);
+                        value += map.get(s);
+                        resultAux.put(id, value);
+                    }else {
+                        resultAux.put(id, map.get(s));
+                    }
+                }
+            }
+        }
+
+        for (Map.Entry<String, Double> map : resultAux.entrySet()){
+            String id = map.getKey();
+            Double value = map.getValue();
+            SimpleEntry<String, Double> find = new SimpleEntry<>(id, value);
+            result.add(find);
+        }
 
         return result;
     }
 
-    private static Map<String, Map<String, Double>> preProcessing() throws Exception{
+    private static Map<String, Map<String, Double>> preProcessing(Map<String, String> cacheInfo) throws Exception{
 
         Map<String, Map<String, Double>> cache = new HashMap<>();
 
@@ -100,6 +145,12 @@ public class Main {
                 String id = getElementValueByTagName(elemento, "id");
                 String title = getElementValueByTagName(elemento, "title");
                 String text = getElementValueByTagName(elemento, "text");
+
+                //função que processa o id, title e text
+                String verbeteInfo = processingVerbete(id, title, text);
+
+                //salva o verbete processado no cache de informações
+                cacheInfo.put(id, verbeteInfo);
 
                 //"quebra" o text e o title
                 String[] textWords = text.split(" ");
@@ -144,6 +195,26 @@ public class Main {
         }
 
         return cache;
+    }
+
+    private static String processingVerbete(String id, String title, String text) {
+        int count = 0;
+        StringBuilder sb = new StringBuilder();
+        sb.append(id);
+        sb.append("\n");
+        sb.append("title: ");
+        sb.append(title);
+        sb.append("\n");
+        for (String s : text.split(" ")) {
+            if (count > 50){
+                break;
+            }
+            sb.append(s);
+            sb.append(" ");
+            count++;
+        }
+        sb.append("...");
+        return sb.toString();
     }
 
     //conta a porcentagem de aparição da busca em relação ao texto
