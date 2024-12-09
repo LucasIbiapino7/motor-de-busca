@@ -20,13 +20,6 @@ public class Main {
         //Cache
         Map<String, Map<String, Double>> cache = preProcessing(cacheInfo);
 
-        /*
-        como funciona a busca?
-        quando recebemos um verbete, percorremos o cache, em cada id perguntamos se aquele verbete
-        tem a palavra que buscamos, se sim, retornamos a sua porcentagem, depois ordenamos por porcentagem e exibimos
-        os valores
-         */
-
         //id e porcentagem
         List<SimpleEntry<String, Double>> result;
 
@@ -42,13 +35,18 @@ public class Main {
                 result = searchInCache(search, cache);
             }
 
+            if (result.isEmpty()){
+                System.out.println("Nenhum resultado encontrado");
+                continue;
+            }
+
             result.stream()
                     .sorted((entry1, entry2) -> - entry1.getValue().compareTo(entry2.getValue()))
                     .limit(5)
                     .map(entry -> cacheInfo.get(entry.getKey()))
                     .forEach(System.out::println);
 
-            System.out.println("digite 0 se quiser parar");
+            System.out.print("digite 0 se quiser parar: ");
             int flag = scanner.nextInt();
             scanner.nextLine();
             if (flag == 0){
@@ -60,11 +58,11 @@ public class Main {
     private static List<SimpleEntry<String, Double>> searchInCache(String search, Map<String, Map<String, Double>> cache) {
         List<SimpleEntry<String, Double>> result = new ArrayList<>();
 
-        for (Map.Entry<String, Map<String, Double>> outerEntry : cache.entrySet()){
+        for (Map.Entry<String, Map<String, Double>> outerMap : cache.entrySet()){
             //id do verbete
-            String id = outerEntry.getKey();
+            String id = outerMap.getKey();
             //map com -> palavra como chave e porcentagem como value
-            Map<String, Double> map = outerEntry.getValue();
+            Map<String, Double> map = outerMap.getValue();
 
             if (map.containsKey(search)){
                 SimpleEntry<String, Double> find = new SimpleEntry<>(id, map.get(search));
@@ -206,7 +204,7 @@ public class Main {
         sb.append(title);
         sb.append("\n");
         for (String s : text.split(" ")) {
-            if (count > 50){
+            if (count > 25){
                 break;
             }
             sb.append(s);
@@ -217,29 +215,6 @@ public class Main {
         return sb.toString();
     }
 
-    //conta a porcentagem de aparição da busca em relação ao texto
-    // calculo: ocorrencias / palavras do texto que não são stop words
-    private static double countPercentage(String[] textWords, String search) {
-        //Número de ocorrencias da palavra no texto
-        int occurrences = countOccurrencesBySearch(textWords, search);
-
-        //número de palavras no texto sem as stopWords
-        int occurrencesLessStopWords = countLessStopWords(textWords);
-
-        return (double) occurrences / occurrencesLessStopWords;
-    }
-
-    //Conta o número de palavras do texto sem levar em consideração as stopwords
-    private static int countLessStopWords(String[] textWords) {
-        int count = 0;
-        for (String textWord : textWords) {
-            if (textWord.length() > stopWords){
-                count++;
-            }
-        }
-        return count;
-    }
-
     // Método para extrair o valor de um elemento com base no nome da tag
     private static String getElementValueByTagName(Element element, String tagName) {
         // Novamente, verifica um nó com esse nome, só que agora dentro do "page"
@@ -248,45 +223,6 @@ public class Main {
             return nodeList.item(0).getTextContent().trim();
         }
         return "";
-    }
-
-    private static boolean findWord(String[] words, String search){
-        for (String word : words) {
-            if (word.equalsIgnoreCase(search)){
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static int countOccurrencesBySearch(String[] words, String search){
-        int count = 0;
-        for (String word : words) {
-            if (word.equalsIgnoreCase(search)){
-                count++;
-            }
-        }
-        return count;
-    }
-
-
-    private static void printElements(List<SimpleEntry<Element, Double>> list, int limit){
-        int count = 0;
-        for (SimpleEntry<Element, Double> element : list) {
-            String id = getElementValueByTagName(element.getKey(), "id");
-            String title = getElementValueByTagName(element.getKey(), "title");
-//            String text = getElementValueByTagName(element.getKey(), "text");
-            System.out.println(id);
-            System.out.println(title);
-//            System.out.println(text);
-            System.out.print("percentage: ");
-            System.out.printf("%.8f\n", element.getValue());
-            System.out.println("---------------------");
-            count++;
-            if (count >= limit){
-                break;
-            }
-        }
     }
 }
 
